@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclwrite"
@@ -111,15 +110,12 @@ func processConfig(tfFile string) *hclwrite.File {
 	}
 
 	newSrc := hclfile.Bytes()
-	if bytes.Equal(newSrc, src) {
-		fmt.Println("No Chages")
-	}
 
-	fmt.Printf("%s", newConf.Bytes())
-	//fmt.Println("Writing to: " + provider)
-	//err = ioutil.WriteFile(provider, newConf.Bytes(), 0644)
+	if len(newConf.Bytes()) > 0 {
+		fmt.Println(len(newConf.Bytes()))
+		fmt.Printf("%s", newConf.Bytes())
+	}
 	err = ioutil.WriteFile(tfFile, newSrc, 0644)
-	fmt.Println(err)
 	if err != nil {
 		panic(err)
 	}
@@ -158,13 +154,18 @@ func main() {
 			panic(err)
 		}
 		for _, file := range tfFiles(dir) {
-			fmt.Println("Processing: " + dir)
-			fmt.Println("	File: " + file)
-			newConfig := processConfig(file)
-			fmt.Printf("%s", newConfig.Bytes())
-			_, err := pcfg.Write(newConfig.Bytes())
-			if err != nil {
-				panic(err)
+			if file != provider {
+				fmt.Println("Processing: " + dir)
+				fmt.Println("	File: " + file)
+				newConfig := processConfig(file)
+				if len(newConfig.Bytes()) > 0 {
+					fmt.Printf("%s", newConfig.Bytes())
+					fmt.Println("Writing to :" + provider)
+					_, err := pcfg.Write(newConfig.Bytes())
+					if err != nil {
+						panic(err)
+					}
+				}
 			}
 		}
 
