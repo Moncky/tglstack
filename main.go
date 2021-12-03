@@ -14,10 +14,6 @@ import (
 // Return a slice of uniqe module direcotires
 func tfRoot(files string) string {
 	modulePaths := filepath.Dir(files)
-	//modulePathMap := make([]string, 0, len())
-	//for _, v := range {
-	//	modulePathMap[v] = struct{}{}
-	//}
 	return modulePaths
 }
 
@@ -74,9 +70,8 @@ func tfFiles(rootDir string) []string {
 }
 
 //Process config files, return a new config as a []byte
-func processConfig(tfFile string) *hclwrite.File {
+func processConfig(tfFile string) (*hclwrite.File, []byte) {
 	src, err := ioutil.ReadFile(tfFile)
-	//provider := filepath.Dir(tfFile) + "/providers.tf"
 	hclfile, diags := hclwrite.ParseConfig(src, tfFile, hcl.Pos{Line: 1, Column: 1})
 
 	var newConf = hclwrite.NewEmptyFile()
@@ -100,12 +95,12 @@ func processConfig(tfFile string) *hclwrite.File {
 		if block.Type() == "terraform" {
 			rootBody.AppendBlock(block)
 			rootBody.AppendNewline()
-			//hclfile.Body().RemoveBlock(block)
+			hclfile.Body().RemoveBlock(block)
 		}
 		if block.Type() == "provider" {
 			rootBody.AppendBlock(block)
 			rootBody.AppendNewline()
-			//hclfile.Body().RemoveBlock(block)
+			hclfile.Body().RemoveBlock(block)
 		}
 	}
 
@@ -113,14 +108,13 @@ func processConfig(tfFile string) *hclwrite.File {
 
 	if len(newConf.Bytes()) > 0 {
 		fmt.Println(len(newConf.Bytes()))
-		fmt.Printf("%s", newConf.Bytes())
 	}
-	err = ioutil.WriteFile(tfFile, newSrc, 0644)
+
 	if err != nil {
 		panic(err)
 	}
-	//fmt.Printf("%s", newConf.Bytes())
-	return newConf
+
+	return newConf, newSrc
 }
 
 func main() {
@@ -141,33 +135,37 @@ func main() {
 	for _, file := range tfFiles(modulesRoot) {
 		allModuleDirs = append(allModuleDirs, tfRoot(file))
 	}
-	// Iterate the slice of unique module direcores and process each tf file, then create the new providers.tf file
+	// Iterate the slice of unique module direcotries and process each tf file, then create the new providers.tf file
 	for _, module := range uniqModuleDirs(allModuleDirs) {
 		moduleDirs = append(moduleDirs, module)
 	}
 
 	//Process the terraform files in each of the module directories
-	for _, dir := range allModuleDirs {
+	for _, dir := range moduleDirs {
 		provider := dir + "/providers.tf"
 		pcfg, err := os.Create(provider)
 		if err != nil {
 			panic(err)
 		}
+		fmt.Println("Processing: " + dir)
 		for _, file := range tfFiles(dir) {
 			if file != provider {
-				fmt.Println("Processing: " + dir)
 				fmt.Println("	File: " + file)
-				newConfig := processConfig(file)
+				newConfig, newSrc := processConfig(file)
 				if len(newConfig.Bytes()) > 0 {
 					fmt.Printf("%s", newConfig.Bytes())
-					fmt.Println("Writing to :" + provider)
+					fmt.Println("		Writing to :" + provider)
 					_, err := pcfg.Write(newConfig.Bytes())
+					if err != nil {
+						panic(err)
+					}
+					fmt.Println("		Removing from: " + file)
+					err = ioutil.WriteFile(file, newSrc, 0644)
 					if err != nil {
 						panic(err)
 					}
 				}
 			}
 		}
-
 	}
 }
